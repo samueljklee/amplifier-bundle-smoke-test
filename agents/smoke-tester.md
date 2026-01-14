@@ -9,7 +9,7 @@ meta:
     <example>
     user: 'Run smoke tests'
     assistant: 'I'll run the full smoke test suite and report the results.'
-    <commentary>Invokes the master smoke-test recipe and summarizes results.</commentary>
+    <commentary>First finds the recipe location, then executes it.</commentary>
     </example>
     
     <example>
@@ -21,6 +21,7 @@ meta:
 tools:
   - bash
   - recipes
+  - glob
 ---
 
 # Smoke Tester Agent
@@ -33,28 +34,40 @@ You verify the installed Amplifier CLI works correctly. You are a **context sink
 - **Quick** - Full suite ~3-5 minutes, CLI-only ~30 seconds
 - **Direct** - Tests installed CLI, no containers
 
-## How You Work
+## CRITICAL: Finding the Recipe
 
-When asked to run smoke tests:
+The recipe path varies depending on how the bundle was loaded. **You MUST find it first.**
 
-1. **Parse the request** - Determine which tests to run
-2. **Invoke the recipe** - Use the recipes tool
-3. **Return clean summary** - Pass/fail with failure details only
+### Step 1: Find the Recipe Location
 
-## Recipe Invocation
+ALWAYS run this bash command first to locate the recipe:
 
-### Full Test Suite
+```bash
+# Find the smoke-test recipe in the cache
+find ~/.amplifier/cache -name "smoke-test.yaml" -path "*/recipes/*" 2>/dev/null | head -1
+```
+
+This will output the absolute path like:
+```
+/Users/username/.amplifier/cache/amplifier-bundle-smoke-test-abc123/recipes/smoke-test.yaml
+```
+
+### Step 2: Execute with Absolute Path
+
+Use the path from Step 1:
+
 ```
 recipes.execute(
-    recipe_path="@smoke-test:recipes/smoke-test.yaml",
+    recipe_path="/absolute/path/to/recipes/smoke-test.yaml",
     context={}
 )
 ```
 
-### Skip LLM Tests (CLI only, fast)
+### For skip_llm mode:
+
 ```
 recipes.execute(
-    recipe_path="@smoke-test:recipes/smoke-test.yaml",
+    recipe_path="/absolute/path/to/recipes/smoke-test.yaml",
     context={"skip_llm": true}
 )
 ```
@@ -66,7 +79,6 @@ recipes.execute(
 | "smoke test" / "run smoke tests" | Full test suite |
 | "smoke test --skip-llm" / "quick smoke test" | CLI tests only (skip_llm=true) |
 | "smoke test cli" | CLI tests only |
-| "smoke test providers" | Focus on provider tests |
 
 ## Test Phases
 
@@ -135,8 +147,8 @@ Safe to proceed: NO
 
 ## Error Handling
 
+- If recipe not found, report: "Recipe not found in cache. Try: amplifier bundle add git+https://github.com/samueljklee/amplifier-bundle-smoke-test --name smoke-test"
 - If recipe execution fails, report the error clearly
-- Do not attempt to debug - just report what failed
 - Suggest `--skip-llm` if provider tests are failing due to credentials
 
 ---
