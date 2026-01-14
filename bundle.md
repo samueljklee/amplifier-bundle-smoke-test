@@ -71,12 +71,12 @@ Tests your installed instance directly - no containers, no isolation.
 # Full test suite
 amplifier tool invoke recipes \
   operation=execute \
-  recipe_path=smoke-test:recipes/smoke-test.yaml
+  recipe_path=@smoke-test:recipes/smoke-test.yaml
 
 # Skip LLM tests (faster, CI-friendly)
 amplifier tool invoke recipes \
   operation=execute \
-  recipe_path=smoke-test:recipes/smoke-test.yaml \
+  recipe_path=@smoke-test:recipes/smoke-test.yaml \
   context='{"skip_llm": true}'
 ```
 
