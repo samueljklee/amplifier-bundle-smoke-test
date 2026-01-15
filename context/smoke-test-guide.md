@@ -53,12 +53,12 @@ This is a **safety check, not a debugger**:
 # Full test suite
 amplifier tool invoke recipes \
   operation=execute \
-  recipe_path=smoke-test:recipes/smoke-test.yaml
+  recipe_path=@smoke-test:recipes/smoke-test.yaml
 
 # Skip LLM tests (faster, CI-friendly)
 amplifier tool invoke recipes \
   operation=execute \
-  recipe_path=smoke-test:recipes/smoke-test.yaml \
+  recipe_path=@smoke-test:recipes/smoke-test.yaml \
   context='{"skip_llm": true}'
 ```
 

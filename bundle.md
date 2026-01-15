@@ -5,9 +5,7 @@ bundle:
   description: Comprehensive sanity check for installed Amplifier CLI
 
 includes:
-  # recipes bundle already includes foundation
   - bundle: git+https://github.com/microsoft/amplifier-bundle-recipes@main
-  # Include smoke test runner behavior (loads delegation instructions)
   - bundle: smoke-test:behaviors/smoke-test-runner
 
 agents:
@@ -23,15 +21,6 @@ Comprehensive sanity check: "Does the installed Amplifier CLI generally work?"
 
 **When the user asks to run smoke tests, ALWAYS delegate to the `smoke-test:smoke-tester` agent.**
 
-The smoke-tester agent knows how to:
-1. Find the recipe location in the cache
-2. Execute it with the correct absolute path
-3. Handle skip_llm mode
-
-**DO NOT try to run the recipe directly.** The bundle path `smoke-test:recipes/...` won't resolve correctly when loaded via git URL.
-
-### How to Invoke
-
 ```
 task(agent="smoke-test:smoke-tester", instruction="Run full smoke tests")
 ```
@@ -41,51 +30,25 @@ For skip-llm mode:
 task(agent="smoke-test:smoke-tester", instruction="Run smoke tests with skip_llm=true")
 ```
 
-## User Commands
+| User Says | Action |
+|-----------|--------|
+| "run smoke test" | Delegate to `smoke-test:smoke-tester` |
+| "smoke test" | Delegate to `smoke-test:smoke-tester` |
+| "smoke test --skip-llm" | Delegate with skip_llm instruction |
+| "quick smoke test" | Delegate with skip_llm instruction |
 
-| User Says | Delegate To |
-|-----------|-------------|
-| "run smoke test" | smoke-test:smoke-tester |
-| "smoke test" | smoke-test:smoke-tester |
-| "smoke test --skip-llm" | smoke-test:smoke-tester (with skip_llm instruction) |
-| "quick smoke test" | smoke-test:smoke-tester (with skip_llm instruction) |
+**DO NOT** try to run the recipe directly or explore the repo. The agent knows what to do.
 
-## What Gets Tested
+## Usage
 
-### CLI Tests (No LLM Required)
+**In conversation:**
+```
+"run smoke test"           # Full suite
+"smoke test --skip-llm"    # CLI only (faster)
+```
 
-| Phase | Tests |
-|-------|-------|
-| CLI Core | --version, --help |
-| CLI Config | bundle list/current, provider list/current, source list |
-| CLI Resources | module list, agents list, session list, tool list |
-| Profile Commands | profile list, profile current |
-| Recipe Validation | Validate recipe YAML structure |
-| Source Override | source list, add/remove --help |
-
-### LLM Tests (Require Provider)
-
-| Phase | Tests |
-|-------|-------|
-| Multi-Provider | Tests all available providers (OpenAI, Anthropic, Azure, Ollama) |
-| Session CRUD | Create, list, show, resume, delete session lifecycle |
-| Mention Validation | Read files via @mention, extract known phrases |
-| Provider Responds | Simple deterministic prompt response |
-| Tool Execution | Bash tool via LLM |
-| Agent Delegation | Task tool delegation to sub-agent |
-
-## Philosophy
-
-**Safety check, not debugger.**
-- Pass = Everything works, carry on
-- Fail = Something needs attention, investigate
-
-Tests your installed instance directly - no containers, no isolation.
-
-## Direct Recipe Invocation
-
+**Direct invocation:**
 ```bash
-# Full test suite
 amplifier tool invoke recipes \
   operation=execute \
   recipe_path=@smoke-test:recipes/smoke-test.yaml
@@ -96,6 +59,28 @@ amplifier tool invoke recipes \
   recipe_path=@smoke-test:recipes/smoke-test.yaml \
   context='{"skip_llm": true}'
 ```
+
+## What Gets Tested
+
+| Category | Tests |
+|----------|-------|
+| CLI Core | --version, --help |
+| CLI Config | bundle, provider, source commands |
+| CLI Resources | module, agents, session, tool commands |
+| Recipe System | Recipe validation |
+| Source Override | source list, add/remove |
+| Multi-Provider | All available providers (OpenAI, Anthropic, Azure, Ollama) |
+| Session CRUD | Create, list, show, resume, delete |
+| @Mentions | File reading via @mention |
+| Provider | Simple prompt response |
+| Tool Execution | Bash tool via LLM |
+| Agent Delegation | Task tool to sub-agent |
+
+## Philosophy
+
+**Safety check, not debugger.**
+- Pass = Everything works, carry on
+- Fail = Something needs attention, investigate
 
 ## Timing
 

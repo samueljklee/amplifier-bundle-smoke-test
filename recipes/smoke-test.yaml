@@ -6,7 +6,7 @@
 # Usage:
 #   amplifier tool invoke recipes \
 #     operation=execute \
-#     recipe_path=smoke-test:recipes/smoke-test.yaml
+#     recipe_path=@smoke-test:recipes/smoke-test.yaml
 #
 #   Skip LLM tests (faster, CI-friendly):
 #     context='{"skip_llm": true}'
@@ -208,7 +208,7 @@ steps:
       echo -n "Testing: amplifier tool invoke recipes operation=validate ... "
       
       # Try bundle path first, fall back to relative path for local testing
-      if output=$(amplifier tool invoke recipes operation=validate recipe_path=smoke-test:recipes/smoke-test.yaml 2>&1); then
+      if output=$(amplifier tool invoke recipes operation=validate recipe_path=@smoke-test:recipes/smoke-test.yaml 2>&1); then
         echo "OK"
         echo "  Validation output: $(echo "$output" | head -3)"
         echo "recipe-validation: PASS"
