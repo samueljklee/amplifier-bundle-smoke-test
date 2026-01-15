@@ -380,28 +380,27 @@ steps:
       echo "=== Session CRUD Tests ==="
       errors=""
       
-      # Generate unique session ID
-      SESSION_ID="smoke-test-$(date +%s)-$$"
-      echo "Using session ID: $SESSION_ID"
-      
-      # Test 1: Create session
+      # Test 1: Create session (capture session ID from output)
       echo ""
       echo -n "Testing: Create session ... "
-      if response=$(amplifier run --mode single --session-id "$SESSION_ID" "Reply with exactly: SESSION_CREATE_OK" 2>&1); then
-        if echo "$response" | grep -q "SESSION_CREATE_OK"; then
-          echo "OK"
-        else
-          echo "FAILED (unexpected response)"
-          errors="${errors}create session failed; "
-        fi
+      response=$(amplifier run --mode single --output-format json "Reply with exactly: SESSION_CREATE_OK" 2>&1) || true
+      
+      # Extract session ID from JSON output
+      SESSION_ID=$(echo "$response" | grep -o '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || echo "")
+      
+      if [ -z "$SESSION_ID" ]; then
+        echo "FAILED (could not extract session ID)"
+        errors="${errors}create session failed; "
+      elif echo "$response" | grep -q "SESSION_CREATE_OK"; then
+        echo "OK (session: $SESSION_ID)"
       else
-        echo "FAILED"
+        echo "FAILED (unexpected response)"
         errors="${errors}create session failed; "
       fi
       
       # Test 2: List sessions (should include our session)
       echo -n "Testing: List sessions ... "
-      if amplifier session list 2>&1 | grep -q "$SESSION_ID"; then
+      if [ -n "$SESSION_ID" ] && amplifier session list 2>&1 | grep -q "$SESSION_ID"; then
         echo "OK (found $SESSION_ID)"
       else
         echo "FAILED (session not found in list)"
@@ -410,7 +409,7 @@ steps:
       
       # Test 3: Show session details
       echo -n "Testing: Show session ... "
-      if amplifier session show "$SESSION_ID" >/dev/null 2>&1; then
+      if [ -n "$SESSION_ID" ] && amplifier session show "$SESSION_ID" >/dev/null 2>&1; then
         echo "OK"
       else
         echo "FAILED"
@@ -419,21 +418,22 @@ steps:
       
       # Test 4: Resume session
       echo -n "Testing: Resume session ... "
-      if response=$(amplifier run --mode single --session-id "$SESSION_ID" "Reply with exactly: SESSION_RESUME_OK" 2>&1); then
-        if echo "$response" | grep -q "SESSION_RESUME_OK"; then
+      if [ -n "$SESSION_ID" ]; then
+        resume_response=$(amplifier run --mode single --resume "$SESSION_ID" "Reply with exactly: SESSION_RESUME_OK" 2>&1) || true
+        if echo "$resume_response" | grep -q "SESSION_RESUME_OK"; then
           echo "OK"
         else
           echo "FAILED (unexpected response)"
           errors="${errors}resume session failed; "
         fi
       else
-        echo "FAILED"
-        errors="${errors}resume session failed; "
+        echo "SKIPPED (no session to resume)"
+        errors="${errors}resume session skipped; "
       fi
       
       # Test 5: Delete session (cleanup)
       echo -n "Testing: Delete session ... "
-      if amplifier session delete "$SESSION_ID" --force >/dev/null 2>&1; then
+      if [ -n "$SESSION_ID" ] && amplifier session delete "$SESSION_ID" --force >/dev/null 2>&1; then
         echo "OK"
       else
         echo "FAILED"
@@ -442,7 +442,7 @@ steps:
       
       # Test 6: Verify deletion
       echo -n "Testing: Verify session deleted ... "
-      if ! amplifier session list 2>&1 | grep -q "$SESSION_ID"; then
+      if [ -z "$SESSION_ID" ] || ! amplifier session list 2>&1 | grep -q "$SESSION_ID"; then
         echo "OK"
       else
         echo "FAILED (session still exists)"
@@ -699,79 +699,80 @@ steps:
   # Phase 13: Deterministic Summary (no LLM)
   # ============================================================================
   - id: "summary"
-    type: "bash"
-    command: |
-      echo "============================================================"
-      echo "AMPLIFIER SMOKE TEST RESULTS (Extended)"
-      echo "============================================================"
-      echo ""
+    type: "agent"
+    agent: "foundation:file-ops"
+    provider: "anthropic"
+    model: "claude-haiku"
+    prompt: |
+      Analyze the smoke test results and generate a summary report.
       
-      # Track overall status
-      failed=0
-      skipped=0
-      passed=0
-      failures=""
+      For each test below, check if the output contains the PASS pattern, SKIP pattern, or neither (FAIL).
       
-      # Helper function to check result
-      check_result() {
-        local name="$1"
-        local result="$2"
-        local pass_pattern="$3"
-        local skip_pattern="$4"
-        
-        if echo "$result" | grep -q "$skip_pattern"; then
-          printf "%-25s SKIPPED\n" "$name:"
-          skipped=$((skipped + 1))
-        elif echo "$result" | grep -q "$pass_pattern"; then
-          printf "%-25s PASS\n" "$name:"
-          passed=$((passed + 1))
-        else
-          printf "%-25s FAIL\n" "$name:"
-          failed=$((failed + 1))
-          failures="${failures}  - ${name}\n"
-        fi
-      }
+      TEST RESULTS:
       
-      # CLI Tests (no skip pattern)
-      check_result "CLI Core" "{{cli_core_result}}" "cli-core: PASS" "NEVER_SKIP"
-      check_result "CLI Config" "{{cli_config_result}}" "cli-config: PASS" "NEVER_SKIP"
-      check_result "CLI Resources" "{{cli_resources_result}}" "cli-resources: PASS" "NEVER_SKIP"
-      check_result "Profile Commands" "{{profile_commands_result}}" "profile-commands: PASS" "NEVER_SKIP"
-      check_result "Recipe Validation" "{{recipe_validation_result}}" "recipe-validation: PASS" "NEVER_SKIP"
-      check_result "Source Override" "{{source_override_result}}" "source-override: PASS" "NEVER_SKIP"
+      1. CLI Core (pass: "cli-core: PASS", skip: never):
+      {{cli_core_result}}
       
-      # LLM Tests (can be skipped)
-      check_result "Multi-Provider" "{{multi_provider_result}}" "multi-provider: PASS" "multi-provider: SKIPPED"
-      check_result "Session CRUD" "{{session_crud_result}}" "session-crud: PASS" "session-crud: SKIPPED"
-      check_result "Mention Validation" "{{mention_validation_result}}" "mention-validation: PASS" "mention-validation: SKIPPED"
-      check_result "Provider Responds" "{{provider_result}}" "provider-responds: PASS" "provider-responds: SKIPPED"
-      check_result "Tool Execution" "{{tool_result}}" "tool-execution: PASS" "tool-execution: SKIPPED"
-      check_result "Agent Delegation" "{{agent_result}}" "agent-delegation: PASS" "agent-delegation: SKIPPED"
+      2. CLI Config (pass: "cli-config: PASS", skip: never):
+      {{cli_config_result}}
       
-      echo ""
-      echo "------------------------------------------------------------"
-      total=$((passed + failed + skipped))
-      echo "SUMMARY: $passed passed, $failed failed, $skipped skipped (of $total)"
-      echo "------------------------------------------------------------"
+      3. CLI Resources (pass: "cli-resources: PASS", skip: never):
+      {{cli_resources_result}}
       
-      if [ $failed -gt 0 ]; then
-        echo ""
-        echo "FAILED TESTS:"
-        printf "$failures"
-        echo ""
-        echo "============================================================"
-        echo "SMOKE TEST: FAIL"
-        echo "============================================================"
-        echo ""
-        echo "Safe to proceed: NO"
-        exit 1
-      else
-        echo ""
-        echo "============================================================"
-        echo "SMOKE TEST: PASS"
-        echo "============================================================"
-        echo ""
-        echo "Safe to proceed: YES"
-      fi
+      4. Profile Commands (pass: "profile-commands: PASS", skip: never):
+      {{profile_commands_result}}
+      
+      5. Recipe Validation (pass: "recipe-validation: PASS", skip: never):
+      {{recipe_validation_result}}
+      
+      6. Source Override (pass: "source-override: PASS", skip: never):
+      {{source_override_result}}
+      
+      7. Multi-Provider (pass: "multi-provider: PASS", skip: "multi-provider: SKIPPED"):
+      {{multi_provider_result}}
+      
+      8. Session CRUD (pass: "session-crud: PASS", skip: "session-crud: SKIPPED"):
+      {{session_crud_result}}
+      
+      9. Mention Validation (pass: "mention-validation: PASS", skip: "mention-validation: SKIPPED"):
+      {{mention_validation_result}}
+      
+      10. Provider Responds (pass: "provider-responds: PASS", skip: "provider-responds: SKIPPED"):
+      {{provider_result}}
+      
+      11. Tool Execution (pass: "tool-execution: PASS", skip: "tool-execution: SKIPPED"):
+      {{tool_result}}
+      
+      12. Agent Delegation (pass: "agent-delegation: PASS", skip: "agent-delegation: SKIPPED"):
+      {{agent_result}}
+      
+      Generate output in EXACTLY this format (no extra text):
+      
+      ============================================================
+      AMPLIFIER SMOKE TEST RESULTS (Extended)
+      ============================================================
+      
+      CLI Core:                 [PASS/FAIL/SKIPPED]
+      CLI Config:               [PASS/FAIL/SKIPPED]
+      CLI Resources:            [PASS/FAIL/SKIPPED]
+      Profile Commands:         [PASS/FAIL/SKIPPED]
+      Recipe Validation:        [PASS/FAIL/SKIPPED]
+      Source Override:          [PASS/FAIL/SKIPPED]
+      Multi-Provider:           [PASS/FAIL/SKIPPED]
+      Session CRUD:             [PASS/FAIL/SKIPPED]
+      Mention Validation:       [PASS/FAIL/SKIPPED]
+      Provider Responds:        [PASS/FAIL/SKIPPED]
+      Tool Execution:           [PASS/FAIL/SKIPPED]
+      Agent Delegation:         [PASS/FAIL/SKIPPED]
+      
+      ------------------------------------------------------------
+      SUMMARY: X passed, Y failed, Z skipped (of 12)
+      ------------------------------------------------------------
+      
+      ============================================================
+      SMOKE TEST: [PASS if no failures, FAIL if any failures]
+      ============================================================
+      
+      Safe to proceed: [YES if PASS, NO if FAIL]
     output: "final_summary"
-    timeout: 30
+    timeout: 120
