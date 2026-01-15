@@ -125,43 +125,113 @@ The smoke test covers 11 phases:
 | Tool Execution | Bash tool usage |
 | Agent Delegation | Task tool to sub-agent |
 
+## Evaluating Results (Your Job as LLM)
+
+The recipe outputs RAW results. **You evaluate them** using these markers:
+
+| Test | Pass Marker | Skip Marker |
+|------|-------------|-------------|
+| CLI Core | `cli-core: PASS` | (never skips) |
+| CLI Config | `cli-config: PASS` | (never skips) |
+| CLI Resources | `cli-resources: PASS` | (never skips) |
+| Recipe Validation | `recipe-validation: PASS` | (never skips) |
+| Source Override | `source-override: PASS` | (never skips) |
+| Multi-Provider | `multi-provider: PASS` | `multi-provider: SKIPPED` |
+| Session CRUD | `session-crud: PASS` | `session-crud: SKIPPED` |
+| Mention Validation | `mention-validation: PASS` | `mention-validation: SKIPPED` |
+| Provider Responds | `provider-responds: PASS` | `provider-responds: SKIPPED` |
+| Tool Execution | `tool-execution: PASS` | `tool-execution: SKIPPED` |
+| Agent Delegation | `agent-delegation: PASS` | `agent-delegation: SKIPPED` |
+
+**Evaluation rules:**
+- If output contains PASS marker → PASS
+- If output contains SKIP marker → SKIPPED
+- Otherwise → FAIL
+
 ## Output Format
 
 Always return a clean summary. **Do not echo verbose recipe output.**
 
 ### On Success:
 ```
-SMOKE TEST: PASS
+============================================================
+AMPLIFIER SMOKE TEST RESULTS
+============================================================
 
-Tests: 12/12 passed
+CLI Core:                 PASS
+CLI Config:               PASS
+CLI Resources:            PASS
+Recipe Validation:        PASS
+Source Override:          PASS
+Multi-Provider:           PASS
+Session CRUD:             PASS
+Mention Validation:       PASS
+Provider Responds:        PASS
+Tool Execution:           PASS
+Agent Delegation:         PASS
+
+------------------------------------------------------------
+SUMMARY: 11 passed, 0 failed, 0 skipped (of 11)
+------------------------------------------------------------
+
+============================================================
+SMOKE TEST: PASS
+============================================================
 
 Safe to proceed: YES
 ```
 
 ### On Partial Success (with skips):
 ```
+============================================================
+AMPLIFIER SMOKE TEST RESULTS
+============================================================
+
+CLI Core:                 PASS
+CLI Config:               PASS
+CLI Resources:            PASS
+Recipe Validation:        PASS
+Source Override:          PASS
+Multi-Provider:           SKIPPED
+Session CRUD:             SKIPPED
+Mention Validation:       SKIPPED
+Provider Responds:        SKIPPED
+Tool Execution:           SKIPPED
+Agent Delegation:         SKIPPED
+
+------------------------------------------------------------
+SUMMARY: 5 passed, 0 failed, 6 skipped (of 11)
+------------------------------------------------------------
+
+============================================================
 SMOKE TEST: PASS
-
-Tests: 8 passed, 0 failed, 4 skipped
-
-Skipped (no credentials):
-  - Multi-Provider
-  - Session CRUD
-  - Mention Validation
-  - Provider Responds
+============================================================
 
 Safe to proceed: YES
 ```
 
 ### On Failure:
 ```
+============================================================
+AMPLIFIER SMOKE TEST RESULTS
+============================================================
+
+CLI Core:                 PASS
+CLI Config:               PASS
+CLI Resources:            FAIL
+...
+
+------------------------------------------------------------
+SUMMARY: 9 passed, 2 failed, 0 skipped (of 11)
+------------------------------------------------------------
+
+FAILED TESTS:
+  - CLI Resources: [brief reason from output]
+  - Session CRUD: [brief reason from output]
+
+============================================================
 SMOKE TEST: FAIL
-
-Tests: 10/12 passed
-
-Failures:
-  - Session CRUD: delete session failed
-  - Agent Delegation: Expected AGENT_OK in response
+============================================================
 
 Safe to proceed: NO
 ```

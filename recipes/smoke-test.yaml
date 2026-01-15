@@ -641,61 +641,62 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 12: Summary (LLM evaluates test results)
+  # Phase 12: Summary (output raw results for agent to evaluate)
   # ============================================================================
   - id: "summary"
-    agent: "foundation:file-ops"
-    prompt: |
-      Evaluate smoke test results and generate a summary report.
-      
-      ## Test Results to Evaluate
-      
-      For each test, check if output contains the PASS marker, SKIP marker, or neither (FAIL):
-      
-      | Test | Pass Marker | Skip Marker | Output |
-      |------|-------------|-------------|--------|
-      | CLI Core | "cli-core: PASS" | (never skips) | {{cli_core_result}} |
-      | CLI Config | "cli-config: PASS" | (never skips) | {{cli_config_result}} |
-      | CLI Resources | "cli-resources: PASS" | (never skips) | {{cli_resources_result}} |
-      | Recipe Validation | "recipe-validation: PASS" | (never skips) | {{recipe_validation_result}} |
-      | Source Override | "source-override: PASS" | (never skips) | {{source_override_result}} |
-      | Multi-Provider | "multi-provider: PASS" | "multi-provider: SKIPPED" | {{multi_provider_result}} |
-      | Session CRUD | "session-crud: PASS" | "session-crud: SKIPPED" | {{session_crud_result}} |
-      | Mention Validation | "mention-validation: PASS" | "mention-validation: SKIPPED" | {{mention_validation_result}} |
-      | Provider Responds | "provider-responds: PASS" | "provider-responds: SKIPPED" | {{provider_result}} |
-      | Tool Execution | "tool-execution: PASS" | "tool-execution: SKIPPED" | {{tool_result}} |
-      | Agent Delegation | "agent-delegation: PASS" | "agent-delegation: SKIPPED" | {{agent_result}} |
-      
-      ## Required Output Format
-      
-      Generate EXACTLY this format (no extra text before or after):
-      
-      ```
+    type: "bash"
+    command: |
+      cat << 'EOF'
       ============================================================
-      AMPLIFIER SMOKE TEST RESULTS
+      RAW TEST RESULTS (for agent evaluation)
       ============================================================
       
-      CLI Core:                 [PASS/FAIL/SKIPPED]
-      CLI Config:               [PASS/FAIL/SKIPPED]
-      CLI Resources:            [PASS/FAIL/SKIPPED]
-      Recipe Validation:        [PASS/FAIL/SKIPPED]
-      Source Override:          [PASS/FAIL/SKIPPED]
-      Multi-Provider:           [PASS/FAIL/SKIPPED]
-      Session CRUD:             [PASS/FAIL/SKIPPED]
-      Mention Validation:       [PASS/FAIL/SKIPPED]
-      Provider Responds:        [PASS/FAIL/SKIPPED]
-      Tool Execution:           [PASS/FAIL/SKIPPED]
-      Agent Delegation:         [PASS/FAIL/SKIPPED]
+      CLI Core:
+      {{cli_core_result}}
       
-      ------------------------------------------------------------
-      SUMMARY: X passed, Y failed, Z skipped (of 11)
-      ------------------------------------------------------------
+      ---
+      CLI Config:
+      {{cli_config_result}}
+      
+      ---
+      CLI Resources:
+      {{cli_resources_result}}
+      
+      ---
+      Recipe Validation:
+      {{recipe_validation_result}}
+      
+      ---
+      Source Override:
+      {{source_override_result}}
+      
+      ---
+      Multi-Provider:
+      {{multi_provider_result}}
+      
+      ---
+      Session CRUD:
+      {{session_crud_result}}
+      
+      ---
+      Mention Validation:
+      {{mention_validation_result}}
+      
+      ---
+      Provider Responds:
+      {{provider_result}}
+      
+      ---
+      Tool Execution:
+      {{tool_result}}
+      
+      ---
+      Agent Delegation:
+      {{agent_result}}
       
       ============================================================
-      SMOKE TEST: [PASS if 0 failures, FAIL if any failures]
+      END RAW RESULTS
       ============================================================
-      
-      Safe to proceed: [YES if PASS, NO if FAIL]
-      ```
-    output: "final_summary"
-    timeout: 120
+      EOF
+    output: "raw_results"
+    timeout: 30
