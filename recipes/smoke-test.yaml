@@ -196,46 +196,7 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 4: Profile Commands (list, current, use, reset)
-  # ============================================================================
-  - id: "profile-commands"
-    type: "bash"
-    command: |
-      set -euo pipefail
-      
-      echo "=== Profile Commands Tests ==="
-      errors=""
-      
-      # Test 1: profile list (may not exist in all versions)
-      echo -n "Testing: amplifier profile list ... "
-      if amplifier profile list >/dev/null 2>&1; then
-        echo "OK"
-      elif amplifier bundle list 2>&1 | grep -qi "profile\|bundle"; then
-        echo "OK (via bundle)"
-      else
-        echo "SKIPPED (command not available)"
-      fi
-      
-      # Test 2: Check if we can see current profile/bundle state
-      echo -n "Testing: amplifier profile current ... "
-      if amplifier profile current >/dev/null 2>&1; then
-        echo "OK"
-      elif amplifier bundle current >/dev/null 2>&1; then
-        echo "OK (via bundle current)"
-      else
-        echo "SKIPPED (command not available)"
-      fi
-      
-      # Note: We don't test profile use/reset here as it would change user's config
-      # That's tested in the integration section with proper cleanup
-      
-      echo "profile-commands: PASS"
-    output: "profile_commands_result"
-    timeout: 30
-    on_error: "continue"
-
-  # ============================================================================
-  # Phase 5: Recipe Validation Test (non-recursive)
+  # Phase 4: Recipe Validation Test (non-recursive)
   # ============================================================================
   - id: "recipe-validation"
     type: "bash"
@@ -265,7 +226,7 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 6: Multi-Provider Testing (tests all available providers)
+  # Phase 5: Multi-Provider Testing (tests all available providers)
   # ============================================================================
   - id: "multi-provider"
     type: "bash"
@@ -332,9 +293,8 @@ steps:
         
         echo "  Running test with token: $token"
         
-        # Try to use the provider and run a simple test
-        # Note: We use --provider flag if available, otherwise rely on configured provider
-        response=$(amplifier run "Reply with exactly: $token" --mode single 2>&1 || true)
+        # Test the specific provider using --provider flag
+        response=$(amplifier run --provider "$provider" --mode single "Reply with exactly: $token" 2>&1 || true)
         
         if echo "$response" | grep -q "$token"; then
           echo "  PASSED"
@@ -364,7 +324,7 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 7: Session CRUD (create, list, show, resume, delete)
+  # Phase 6: Session CRUD (create, list, show, resume, delete)
   # ============================================================================
   - id: "session-crud"
     type: "bash"
@@ -465,7 +425,7 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 8: Source Override Workflow (add, verify, remove)
+  # Phase 7: Source Override Workflow (add, verify, remove)
   # ============================================================================
   - id: "source-override"
     type: "bash"
@@ -522,7 +482,7 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 9: @Mention Validation (read files via @mention)
+  # Phase 8: @Mention Validation (read files via @mention)
   # ============================================================================
   - id: "mention-validation"
     type: "bash"
@@ -535,43 +495,26 @@ steps:
       
       echo "=== @Mention Validation Tests ==="
       
-      # Find fixture directory
-      # Try bundle path first, then fall back to relative path
-      FIXTURE_DIR=""
+      # Create temp fixtures with known content
+      TMPDIR=$(mktemp -d)
+      trap "rm -rf $TMPDIR" EXIT
       
-      # Check common locations
-      for dir in \
-        "$HOME/.amplifier/cache/"*smoke-test*/fixtures \
-        "./fixtures" \
-        "../amplifier-bundle-smoke-test/fixtures" \
-        ; do
-        if [ -d "$dir" ] && [ -f "$dir/test_doc1.md" ]; then
-          FIXTURE_DIR="$dir"
-          break
-        fi
-      done
+      cat > "$TMPDIR/doc1.md" << 'EOF'
+      # Test Document 1
+      This document contains the phrase: SMOKE_PHRASE_ALPHA
+      EOF
       
-      if [ -z "$FIXTURE_DIR" ]; then
-        echo "WARNING: Fixture directory not found, skipping @mention tests"
-        echo "mention-validation: SKIPPED"
-        exit 0
-      fi
+      cat > "$TMPDIR/doc2.md" << 'EOF'
+      # Test Document 2
+      This document contains the phrase: SMOKE_PHRASE_BETA
+      EOF
       
-      echo "Using fixture directory: $FIXTURE_DIR"
+      echo "Created temp fixtures in: $TMPDIR"
       
       # Test: Read two files via @mention and extract phrases
-      DOC1="$FIXTURE_DIR/test_doc1.md"
-      DOC2="$FIXTURE_DIR/test_doc2.md"
-      
-      if [ ! -f "$DOC1" ] || [ ! -f "$DOC2" ]; then
-        echo "WARNING: Fixture files not found"
-        echo "mention-validation: SKIPPED"
-        exit 0
-      fi
-      
       echo "Testing: @mention with two documents"
       
-      PROMPT="Read @$DOC1 and @$DOC2. Extract the unique phrases from each document. Reply with exactly: PHRASES:<phrase1>;<phrase2>"
+      PROMPT="Read @$TMPDIR/doc1.md and @$TMPDIR/doc2.md. Find the unique SMOKE_PHRASE in each. Reply with exactly both phrases you found."
       
       response=$(amplifier run "$PROMPT" --mode single 2>&1 || true)
       
@@ -605,7 +548,7 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 10: LLM Test - Provider Responds
+  # Phase 9: LLM Test - Provider Responds
   # ============================================================================
   - id: "provider-responds"
     type: "bash"
@@ -636,7 +579,7 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 11: LLM Test - Tool Execution
+  # Phase 10: LLM Test - Tool Execution
   # ============================================================================
   - id: "tool-execution"
     type: "bash"
@@ -667,7 +610,7 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 12: LLM Test - Agent Delegation
+  # Phase 11: LLM Test - Agent Delegation
   # ============================================================================
   - id: "agent-delegation"
     type: "bash"
@@ -698,13 +641,11 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 13: Deterministic Summary (no LLM)
+  # Phase 12: Summary (uses LLM to parse results)
   # ============================================================================
   - id: "summary"
     type: "agent"
     agent: "foundation:file-ops"
-    provider: "anthropic"
-    model: "claude-haiku"
     prompt: |
       Analyze the smoke test results and generate a summary report.
       
@@ -721,43 +662,39 @@ steps:
       3. CLI Resources (pass: "cli-resources: PASS", skip: never):
       {{cli_resources_result}}
       
-      4. Profile Commands (pass: "profile-commands: PASS", skip: never):
-      {{profile_commands_result}}
-      
-      5. Recipe Validation (pass: "recipe-validation: PASS", skip: never):
+      4. Recipe Validation (pass: "recipe-validation: PASS", skip: never):
       {{recipe_validation_result}}
       
-      6. Source Override (pass: "source-override: PASS", skip: never):
+      5. Source Override (pass: "source-override: PASS", skip: never):
       {{source_override_result}}
       
-      7. Multi-Provider (pass: "multi-provider: PASS", skip: "multi-provider: SKIPPED"):
+      6. Multi-Provider (pass: "multi-provider: PASS", skip: "multi-provider: SKIPPED"):
       {{multi_provider_result}}
       
-      8. Session CRUD (pass: "session-crud: PASS", skip: "session-crud: SKIPPED"):
+      7. Session CRUD (pass: "session-crud: PASS", skip: "session-crud: SKIPPED"):
       {{session_crud_result}}
       
-      9. Mention Validation (pass: "mention-validation: PASS", skip: "mention-validation: SKIPPED"):
+      8. Mention Validation (pass: "mention-validation: PASS", skip: "mention-validation: SKIPPED"):
       {{mention_validation_result}}
       
-      10. Provider Responds (pass: "provider-responds: PASS", skip: "provider-responds: SKIPPED"):
+      9. Provider Responds (pass: "provider-responds: PASS", skip: "provider-responds: SKIPPED"):
       {{provider_result}}
       
-      11. Tool Execution (pass: "tool-execution: PASS", skip: "tool-execution: SKIPPED"):
+      10. Tool Execution (pass: "tool-execution: PASS", skip: "tool-execution: SKIPPED"):
       {{tool_result}}
       
-      12. Agent Delegation (pass: "agent-delegation: PASS", skip: "agent-delegation: SKIPPED"):
+      11. Agent Delegation (pass: "agent-delegation: PASS", skip: "agent-delegation: SKIPPED"):
       {{agent_result}}
       
       Generate output in EXACTLY this format (no extra text):
       
       ============================================================
-      AMPLIFIER SMOKE TEST RESULTS (Extended)
+      AMPLIFIER SMOKE TEST RESULTS
       ============================================================
       
       CLI Core:                 [PASS/FAIL/SKIPPED]
       CLI Config:               [PASS/FAIL/SKIPPED]
       CLI Resources:            [PASS/FAIL/SKIPPED]
-      Profile Commands:         [PASS/FAIL/SKIPPED]
       Recipe Validation:        [PASS/FAIL/SKIPPED]
       Source Override:          [PASS/FAIL/SKIPPED]
       Multi-Provider:           [PASS/FAIL/SKIPPED]
@@ -768,7 +705,7 @@ steps:
       Agent Delegation:         [PASS/FAIL/SKIPPED]
       
       ------------------------------------------------------------
-      SUMMARY: X passed, Y failed, Z skipped (of 12)
+      SUMMARY: X passed, Y failed, Z skipped (of 11)
       ------------------------------------------------------------
       
       ============================================================

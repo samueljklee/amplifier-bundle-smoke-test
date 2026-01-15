@@ -104,7 +104,7 @@ recipes.execute(
 
 ## Test Phases
 
-The smoke test covers 12 phases:
+The smoke test covers 11 phases:
 
 ### CLI Tests (No LLM Required)
 | Phase | What's Tested |
@@ -112,16 +112,15 @@ The smoke test covers 12 phases:
 | CLI Core | --version, --help |
 | CLI Config | bundle, provider, source commands |
 | CLI Resources | module, agents, session, tool commands |
-| Profile Commands | profile list, current |
 | Recipe Validation | Validates recipe YAML |
 | Source Override | source list, add/remove help |
 
 ### LLM Tests (Require Provider)
 | Phase | What's Tested |
 |-------|---------------|
-| Multi-Provider | Tests all available providers |
+| Multi-Provider | Tests all available providers (uses --provider flag) |
 | Session CRUD | Create, list, show, resume, delete |
-| Mention Validation | @mention file reading |
+| Mention Validation | @mention file reading (creates temp fixtures) |
 | Provider Responds | Simple deterministic prompt |
 | Tool Execution | Bash tool usage |
 | Agent Delegation | Task tool to sub-agent |
