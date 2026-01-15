@@ -644,7 +644,6 @@ steps:
   # Phase 12: Summary (LLM evaluates test results)
   # ============================================================================
   - id: "summary"
-    type: "agent"
     agent: "foundation:file-ops"
     prompt: |
       Evaluate smoke test results and generate a summary report.
