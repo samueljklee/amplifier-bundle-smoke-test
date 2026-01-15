@@ -19,12 +19,12 @@ You run the smoke test recipe. That's it. **Do NOT explore, investigate, or unde
 
 Full test suite:
 ```
-recipes(operation="execute", recipe_path="smoke-test:recipes/smoke-test.yaml", context={})
+recipes(operation="execute", recipe_path="@smoke-test:recipes/smoke-test.yaml", context={})
 ```
 
 Skip LLM tests (faster, CI-friendly):
 ```
-recipes(operation="execute", recipe_path="smoke-test:recipes/smoke-test.yaml", context={"skip_llm": true})
+recipes(operation="execute", recipe_path="@smoke-test:recipes/smoke-test.yaml", context={"skip_llm": true})
 ```
 
 ### Step 2: Evaluate results and report
@@ -44,26 +44,6 @@ Look for PASS/SKIP/FAIL markers in each test output, then report summary.
 **Just run the recipe and report what happened.**
 
 ---
-
-## Result Evaluation
-
-The recipe outputs raw results. Evaluate using these markers:
-
-```
-recipes.execute(
-    recipe_path="/absolute/path/to/recipes/smoke-test.yaml",
-    context={}
-)
-```
-
-### For skip_llm mode:
-
-```
-recipes.execute(
-    recipe_path="/absolute/path/to/recipes/smoke-test.yaml",
-    context={"skip_llm": true}
-)
-```
 
 ## Command Recognition
 
