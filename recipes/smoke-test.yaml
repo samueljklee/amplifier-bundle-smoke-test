@@ -641,77 +641,85 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 12: Summary (uses LLM to parse results)
+  # Phase 12: Summary (deterministic bash - no agent spawning required)
   # ============================================================================
   - id: "summary"
-    type: "agent"
-    agent: "foundation:file-ops"
-    prompt: |
-      Analyze the smoke test results and generate a summary report.
+    type: "bash"
+    command: |
+      # Parse results and generate summary
+      passed=0
+      failed=0
+      skipped=0
       
-      For each test below, check if the output contains the PASS pattern, SKIP pattern, or neither (FAIL).
+      # Function to check result
+      check_result() {
+        local name="$1"
+        local result="$2"
+        local pass_pattern="$3"
+        local skip_pattern="$4"
+        
+        if echo "$result" | grep -q "$pass_pattern"; then
+          echo "PASS"
+          passed=$((passed + 1))
+        elif [ -n "$skip_pattern" ] && echo "$result" | grep -q "$skip_pattern"; then
+          echo "SKIPPED"
+          skipped=$((skipped + 1))
+        else
+          echo "FAIL"
+          failed=$((failed + 1))
+        fi
+      }
       
-      TEST RESULTS:
+      # Check each test
+      cli_core_status=$(check_result "CLI Core" "{{cli_core_result}}" "cli-core: PASS" "")
+      cli_config_status=$(check_result "CLI Config" "{{cli_config_result}}" "cli-config: PASS" "")
+      cli_resources_status=$(check_result "CLI Resources" "{{cli_resources_result}}" "cli-resources: PASS" "")
+      recipe_validation_status=$(check_result "Recipe Validation" "{{recipe_validation_result}}" "recipe-validation: PASS" "")
+      source_override_status=$(check_result "Source Override" "{{source_override_result}}" "source-override: PASS" "")
+      multi_provider_status=$(check_result "Multi-Provider" "{{multi_provider_result}}" "multi-provider: PASS" "multi-provider: SKIPPED")
+      session_crud_status=$(check_result "Session CRUD" "{{session_crud_result}}" "session-crud: PASS" "session-crud: SKIPPED")
+      mention_validation_status=$(check_result "Mention Validation" "{{mention_validation_result}}" "mention-validation: PASS" "mention-validation: SKIPPED")
+      provider_status=$(check_result "Provider Responds" "{{provider_result}}" "provider-responds: PASS" "provider-responds: SKIPPED")
+      tool_status=$(check_result "Tool Execution" "{{tool_result}}" "tool-execution: PASS" "tool-execution: SKIPPED")
+      agent_status=$(check_result "Agent Delegation" "{{agent_result}}" "agent-delegation: PASS" "agent-delegation: SKIPPED")
       
-      1. CLI Core (pass: "cli-core: PASS", skip: never):
-      {{cli_core_result}}
+      # Determine overall status
+      if [ $failed -eq 0 ]; then
+        overall="PASS"
+        safe="YES"
+      else
+        overall="FAIL"
+        safe="NO"
+      fi
       
-      2. CLI Config (pass: "cli-config: PASS", skip: never):
-      {{cli_config_result}}
-      
-      3. CLI Resources (pass: "cli-resources: PASS", skip: never):
-      {{cli_resources_result}}
-      
-      4. Recipe Validation (pass: "recipe-validation: PASS", skip: never):
-      {{recipe_validation_result}}
-      
-      5. Source Override (pass: "source-override: PASS", skip: never):
-      {{source_override_result}}
-      
-      6. Multi-Provider (pass: "multi-provider: PASS", skip: "multi-provider: SKIPPED"):
-      {{multi_provider_result}}
-      
-      7. Session CRUD (pass: "session-crud: PASS", skip: "session-crud: SKIPPED"):
-      {{session_crud_result}}
-      
-      8. Mention Validation (pass: "mention-validation: PASS", skip: "mention-validation: SKIPPED"):
-      {{mention_validation_result}}
-      
-      9. Provider Responds (pass: "provider-responds: PASS", skip: "provider-responds: SKIPPED"):
-      {{provider_result}}
-      
-      10. Tool Execution (pass: "tool-execution: PASS", skip: "tool-execution: SKIPPED"):
-      {{tool_result}}
-      
-      11. Agent Delegation (pass: "agent-delegation: PASS", skip: "agent-delegation: SKIPPED"):
-      {{agent_result}}
-      
-      Generate output in EXACTLY this format (no extra text):
+      # Generate report
+      cat << EOF
       
       ============================================================
       AMPLIFIER SMOKE TEST RESULTS
       ============================================================
       
-      CLI Core:                 [PASS/FAIL/SKIPPED]
-      CLI Config:               [PASS/FAIL/SKIPPED]
-      CLI Resources:            [PASS/FAIL/SKIPPED]
-      Recipe Validation:        [PASS/FAIL/SKIPPED]
-      Source Override:          [PASS/FAIL/SKIPPED]
-      Multi-Provider:           [PASS/FAIL/SKIPPED]
-      Session CRUD:             [PASS/FAIL/SKIPPED]
-      Mention Validation:       [PASS/FAIL/SKIPPED]
-      Provider Responds:        [PASS/FAIL/SKIPPED]
-      Tool Execution:           [PASS/FAIL/SKIPPED]
-      Agent Delegation:         [PASS/FAIL/SKIPPED]
+      CLI Core:                 $cli_core_status
+      CLI Config:               $cli_config_status
+      CLI Resources:            $cli_resources_status
+      Recipe Validation:        $recipe_validation_status
+      Source Override:          $source_override_status
+      Multi-Provider:           $multi_provider_status
+      Session CRUD:             $session_crud_status
+      Mention Validation:       $mention_validation_status
+      Provider Responds:        $provider_status
+      Tool Execution:           $tool_status
+      Agent Delegation:         $agent_status
       
       ------------------------------------------------------------
-      SUMMARY: X passed, Y failed, Z skipped (of 11)
+      SUMMARY: $passed passed, $failed failed, $skipped skipped (of 11)
       ------------------------------------------------------------
       
       ============================================================
-      SMOKE TEST: [PASS if no failures, FAIL if any failures]
+      SMOKE TEST: $overall
       ============================================================
       
-      Safe to proceed: [YES if PASS, NO if FAIL]
+      Safe to proceed: $safe
+      EOF
     output: "final_summary"
-    timeout: 120
+    timeout: 30
