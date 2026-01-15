@@ -399,9 +399,11 @@ steps:
       fi
       
       # Test 2: List sessions (should include our session)
+      # Note: session list shows truncated IDs, so match first 8 chars
       echo -n "Testing: List sessions ... "
-      if [ -n "$SESSION_ID" ] && amplifier session list 2>&1 | grep -q "$SESSION_ID"; then
-        echo "OK (found $SESSION_ID)"
+      SESSION_PREFIX="${SESSION_ID:0:8}"
+      if [ -n "$SESSION_ID" ] && amplifier session list 2>&1 | grep -q "$SESSION_PREFIX"; then
+        echo "OK (found $SESSION_PREFIX...)"
       else
         echo "FAILED (session not found in list)"
         errors="${errors}session list failed; "
@@ -442,7 +444,7 @@ steps:
       
       # Test 6: Verify deletion
       echo -n "Testing: Verify session deleted ... "
-      if [ -z "$SESSION_ID" ] || ! amplifier session list 2>&1 | grep -q "$SESSION_ID"; then
+      if [ -z "$SESSION_ID" ] || ! amplifier session list 2>&1 | grep -q "$SESSION_PREFIX"; then
         echo "OK"
       else
         echo "FAILED (session still exists)"
