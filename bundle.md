@@ -17,21 +17,36 @@ agents:
 
 Comprehensive sanity check: "Does the installed Amplifier CLI generally work?"
 
-## Usage
+## CRITICAL: Delegation Rule
 
-From any Amplifier conversation:
+**When the user asks to run smoke tests, ALWAYS delegate to the `smoke-test:smoke-tester` agent.**
 
-```
-"Run smoke tests"
-"Smoke test"
-"Smoke test --skip-llm"    # CLI tests only, no API calls
-```
+The smoke-tester agent knows how to:
+1. Find the recipe location in the cache
+2. Execute it with the correct absolute path
+3. Handle skip_llm mode
 
-Or invoke the agent directly:
+**DO NOT try to run the recipe directly.** The bundle path `smoke-test:recipes/...` won't resolve correctly when loaded via git URL.
+
+### How to Invoke
 
 ```
 task(agent="smoke-test:smoke-tester", instruction="Run full smoke tests")
 ```
+
+For skip-llm mode:
+```
+task(agent="smoke-test:smoke-tester", instruction="Run smoke tests with skip_llm=true")
+```
+
+## User Commands
+
+| User Says | Delegate To |
+|-----------|-------------|
+| "run smoke test" | smoke-test:smoke-tester |
+| "smoke test" | smoke-test:smoke-tester |
+| "smoke test --skip-llm" | smoke-test:smoke-tester (with skip_llm instruction) |
+| "quick smoke test" | smoke-test:smoke-tester (with skip_llm instruction) |
 
 ## What Gets Tested
 
