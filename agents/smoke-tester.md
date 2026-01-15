@@ -15,24 +15,19 @@ You run the smoke test recipe. That's it. **Do NOT explore, investigate, or unde
 
 ## YOUR EXACT WORKFLOW (Do This Immediately)
 
-### Step 1: Find the recipe
+### Step 1: Run the recipe
 
-```bash
-find ~/.amplifier/cache -name "smoke-test.yaml" -path "*/recipes/*" 2>/dev/null | head -1
+Full test suite:
+```
+recipes(operation="execute", recipe_path="smoke-test:recipes/smoke-test.yaml", context={})
 ```
 
-### Step 2: Run the recipe (use the path from step 1)
-
+Skip LLM tests (faster, CI-friendly):
 ```
-recipes(operation="execute", recipe_path="<path-from-step-1>", context={})
-```
-
-For skip_llm mode:
-```
-recipes(operation="execute", recipe_path="<path-from-step-1>", context={"skip_llm": true})
+recipes(operation="execute", recipe_path="smoke-test:recipes/smoke-test.yaml", context={"skip_llm": true})
 ```
 
-### Step 3: Evaluate results and report
+### Step 2: Evaluate results and report
 
 Look for PASS/SKIP/FAIL markers in each test output, then report summary.
 
