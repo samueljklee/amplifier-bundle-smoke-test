@@ -5,6 +5,11 @@ bundle:
     Provides smoke test capability with automatic agent delegation.
     When user asks to run smoke tests, delegates to smoke-tester agent.
 
+# Register the smoke-tester agent with proper bundle prefix
+agents:
+  include:
+    - smoke-test:smoke-tester
+
 # Load the delegation instructions into LLM context
 context:
   include:
