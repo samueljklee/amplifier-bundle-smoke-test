@@ -1,0 +1,11 @@
+bundle:
+  name: behavior-smoke-test-runner
+  version: 1.0.0
+  description: |
+    Provides smoke test capability with automatic agent delegation.
+    When user asks to run smoke tests, delegates to smoke-tester agent.
+
+# Load the delegation instructions into LLM context
+context:
+  include:
+    - smoke-test:context/smoke-test-instructions.md

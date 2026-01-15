@@ -7,6 +7,8 @@ bundle:
 includes:
   # recipes bundle already includes foundation
   - bundle: git+https://github.com/microsoft/amplifier-bundle-recipes@main
+  # Include smoke test runner behavior (loads delegation instructions)
+  - bundle: smoke-test:behaviors/smoke-test-runner
 
 agents:
   smoke-tester:
