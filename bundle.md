@@ -7,10 +7,9 @@ bundle:
 includes:
   - bundle: git+https://github.com/microsoft/amplifier-foundation@main#subdirectory=bundles/minimal.yaml
   - bundle: git+https://github.com/microsoft/amplifier-bundle-recipes@main#subdirectory=behaviors/recipes.yaml
+  - bundle: git+https://github.com/microsoft/amplifier-bundle-recipes@main#subdirectory=behaviors/sessions.yaml
   - bundle: git+https://github.com/microsoft/amplifier-foundation@main#subdirectory=behaviors/streaming-ui.yaml
   - bundle: smoke-test:behaviors/smoke-test-runner
-
-includes:
   # Ecosystem expert behaviors (provides @amplifier: and @core: namespaces)
   - bundle: git+https://github.com/microsoft/amplifier@main#subdirectory=behaviors/amplifier-expert.yaml
   - bundle: git+https://github.com/microsoft/amplifier-core@main#subdirectory=behaviors/core-expert.yaml
@@ -24,7 +23,6 @@ includes:
   - bundle: git+https://github.com/microsoft/amplifier-bundle-recipes@main#subdirectory=behaviors/recipes.yaml
   - bundle: git+https://github.com/microsoft/amplifier-bundle-design-intelligence@main#subdirectory=behaviors/design-intelligence.yaml
   - bundle: git+https://github.com/microsoft/amplifier-bundle-python-dev@main
-  - bundle: git+https://github.com/microsoft/amplifier-bundle-shadow@main
   - bundle: git+https://github.com/microsoft/amplifier-module-tool-skills@main#subdirectory=behaviors/skills.yaml
   - bundle: git+https://github.com/microsoft/amplifier-module-hook-shell@main#subdirectory=behaviors/hook-shell.yaml
 
