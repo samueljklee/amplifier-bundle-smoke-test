@@ -6,7 +6,7 @@ bundle:
 
 includes:
   - bundle: git+https://github.com/microsoft/amplifier-foundation@main#subdirectory=bundles/minimal.yaml
-  - bundle: git+https://github.com/microsoft/amplifier-bundle-recipes@main
+  - bundle: git+https://github.com/microsoft/amplifier-bundle-recipes@main#subdirectory=behaviors/recipes.yaml
   - bundle: smoke-test:behaviors/smoke-test-runner
 
 agents:
