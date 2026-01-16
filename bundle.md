@@ -7,7 +7,6 @@ bundle:
 includes:
   - bundle: git+https://github.com/microsoft/amplifier-foundation@main#subdirectory=bundles/minimal.yaml
   - bundle: git+https://github.com/microsoft/amplifier-bundle-recipes@main#subdirectory=behaviors/recipes.yaml
-  - bundle: git+https://github.com/microsoft/amplifier-foundation@main#subdirectory=behaviors/sessions.yaml
   - bundle: git+https://github.com/microsoft/amplifier-foundation@main#subdirectory=behaviors/streaming-ui.yaml
   - bundle: smoke-test:behaviors/smoke-test-runner
   # Ecosystem expert behaviors (provides @amplifier: and @core: namespaces)
@@ -25,7 +24,15 @@ includes:
   - bundle: git+https://github.com/microsoft/amplifier-bundle-python-dev@main
   - bundle: git+https://github.com/microsoft/amplifier-module-tool-skills@main#subdirectory=behaviors/skills.yaml
   - bundle: git+https://github.com/microsoft/amplifier-module-hook-shell@main#subdirectory=behaviors/hook-shell.yaml
+  - bundle: foundation:behaviors/logging
 
+# Automatic session naming and description
+hooks:
+  - module: hooks-session-naming
+    source: git+https://github.com/microsoft/amplifier-foundation@main#subdirectory=modules/hooks-session-naming
+    config:
+      initial_trigger_turn: 1
+      update_interval_turns: 1
 
 session:
   orchestrator:
