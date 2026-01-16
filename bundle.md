@@ -14,6 +14,12 @@ agents:
   include:
     - smoke-test:smoke-tester
 
+tools:
+  - module: tool-task
+    source: git+https://github.com/microsoft/amplifier-module-tool-task@main
+    config:
+      exclude_tools: [tool-task]  # Spawned agents do the work, they don't delegate
+
 spawn:
   tools: [tool-recipes]  # ALL spawned agents ONLY get recipes tool
 ---
