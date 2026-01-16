@@ -5,12 +5,16 @@ bundle:
   description: Comprehensive sanity check for installed Amplifier CLI
 
 includes:
+  - bundle: git+https://github.com/microsoft/amplifier-foundation@main#subdirectory=bundles/minimal.yaml
   - bundle: git+https://github.com/microsoft/amplifier-bundle-recipes@main
   - bundle: smoke-test:behaviors/smoke-test-runner
 
 agents:
-  smoke-tester:
-    path: agents/smoke-tester.md
+  include:
+    - smoke-test:smoke-tester
+
+spawn:
+  tools: [tool-recipes]  # ALL spawned agents ONLY get recipes tool
 ---
 
 # Amplifier Smoke Test Bundle
