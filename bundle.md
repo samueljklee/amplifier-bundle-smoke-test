@@ -16,6 +16,12 @@ includes:
 
 Comprehensive sanity check: "Does the installed Amplifier CLI generally work?"
 
+## Installation
+
+```bash
+amplifier bundle add git+https://github.com/samueljklee/amplifier-bundle-smoke-test --app
+```
+
 ## CLI Usage
 
 ```bash

@@ -6,7 +6,7 @@ Comprehensive sanity check for the installed Amplifier CLI.
 
 ```bash
 # Install the bundle
-amplifier bundle add git+https://github.com/microsoft/amplifier-bundle-smoke-test@main
+amplifier bundle add git+https://github.com/samueljklee/amplifier-bundle-smoke-test --app
 
 # Run from conversation
 amplifier
