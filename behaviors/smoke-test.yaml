@@ -1,0 +1,24 @@
+bundle:
+  name: smoke-test
+  version: 1.0.0
+  description: |
+    Add smoke testing capability to any bundle.
+    Lightweight - does not require foundation bundle.
+
+# Recipes tool is required for running the smoke test recipe
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-bundle-recipes@main#subdirectory=behaviors/recipes.yaml
+
+# Register the smoke-tester agent
+agents:
+  smoke-tester:
+    description: |
+      For amplifier smoke tests, MUST use this agent (do not run smoke test recipe directly).
+      Pass: recipe_path=@smoke-test:recipes/smoke-test.yaml
+      For skip_llm: add context={"skip_llm": true}
+    instructions: smoke-test:agents/smoke-tester.md
+
+# Inject smoke test guide into context
+context:
+  include:
+    - smoke-test:context/smoke-test-guide.md

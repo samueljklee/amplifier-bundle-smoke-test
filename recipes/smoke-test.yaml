@@ -1,0 +1,702 @@
+# Smoke Test Recipe - Extended
+#
+# Comprehensive sanity check for installed Amplifier CLI.
+# Based on dev_verification suite with full CLI coverage.
+#
+# Usage:
+#   amplifier tool invoke recipes \
+#     operation=execute \
+#     recipe_path=@smoke-test:recipes/smoke-test.yaml
+#
+#   Skip LLM tests (faster, CI-friendly):
+#     context='{"skip_llm": true}'
+#
+# Design:
+#   - CLI tests batched by category
+#   - Multi-provider testing (tests all available providers)
+#   - Session CRUD lifecycle
+#   - Source override workflow
+#   - @mention validation with fixtures
+#   - LLM tests kept separate for debugging
+#   - Deterministic bash summary (no LLM overhead)
+#   - on_error: continue collects all failures
+
+name: "smoke-test"
+description: "Comprehensive sanity check - does the installed Amplifier CLI work?"
+version: "3.0.0"
+tags: ["testing", "smoke-test", "cli", "verification"]
+
+context:
+  skip_llm: false
+  # Internal tracking
+  fixture_dir: ""
+
+steps:
+  # ============================================================================
+  # Phase 1: CLI Core Tests (--version, --help)
+  # ============================================================================
+  - id: "cli-core"
+    type: "bash"
+    command: |
+      set -euo pipefail
+      
+      echo "=== CLI Core Tests ==="
+      errors=""
+      
+      # Test 1: --version
+      echo -n "Testing: amplifier --version ... "
+      if version_output=$(amplifier --version 2>&1); then
+        echo "OK"
+        echo "  Output: $version_output"
+      else
+        echo "FAILED"
+        errors="${errors}--version failed; "
+      fi
+      
+      # Test 2: --help
+      echo -n "Testing: amplifier --help ... "
+      if help_output=$(amplifier --help 2>&1 | head -5); then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}--help failed; "
+      fi
+      
+      # Report results
+      if [ -n "$errors" ]; then
+        echo "ERRORS: $errors"
+        exit 1
+      fi
+      echo "cli-core: PASS"
+    output: "cli_core_result"
+    timeout: 30
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 2: CLI Config Tests (bundle, provider, source)
+  # ============================================================================
+  - id: "cli-config"
+    type: "bash"
+    command: |
+      set -euo pipefail
+      
+      echo "=== CLI Config Tests ==="
+      errors=""
+      
+      # Test 1: bundle list
+      echo -n "Testing: amplifier bundle list ... "
+      if amplifier bundle list >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}bundle list failed; "
+      fi
+      
+      # Test 2: bundle current
+      echo -n "Testing: amplifier bundle current ... "
+      if amplifier bundle current >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}bundle current failed; "
+      fi
+      
+      # Test 3: provider list
+      echo -n "Testing: amplifier provider list ... "
+      if amplifier provider list >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}provider list failed; "
+      fi
+      
+      # Test 4: provider current
+      echo -n "Testing: amplifier provider current ... "
+      if amplifier provider current >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}provider current failed; "
+      fi
+      
+      # Test 5: source list
+      echo -n "Testing: amplifier source list ... "
+      if amplifier source list >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}source list failed; "
+      fi
+      
+      # Report results
+      if [ -n "$errors" ]; then
+        echo "ERRORS: $errors"
+        exit 1
+      fi
+      echo "cli-config: PASS"
+    output: "cli_config_result"
+    timeout: 30
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 3: CLI Resource Tests (module, agents, session, tool)
+  # ============================================================================
+  - id: "cli-resources"
+    type: "bash"
+    command: |
+      set -euo pipefail
+      
+      echo "=== CLI Resource Tests ==="
+      errors=""
+      
+      # Test 1: module list
+      echo -n "Testing: amplifier module list ... "
+      if amplifier module list >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}module list failed; "
+      fi
+      
+      # Test 2: agents list
+      echo -n "Testing: amplifier agents list ... "
+      if amplifier agents list >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}agents list failed; "
+      fi
+      
+      # Test 3: session list
+      echo -n "Testing: amplifier session list ... "
+      if amplifier session list >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}session list failed; "
+      fi
+      
+      # Test 4: tool list
+      echo -n "Testing: amplifier tool list ... "
+      if amplifier tool list >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}tool list failed; "
+      fi
+      
+      # Report results
+      if [ -n "$errors" ]; then
+        echo "ERRORS: $errors"
+        exit 1
+      fi
+      echo "cli-resources: PASS"
+    output: "cli_resources_result"
+    timeout: 30
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 4: Recipe Validation Test (non-recursive)
+  # ============================================================================
+  - id: "recipe-validation"
+    type: "bash"
+    command: |
+      set -euo pipefail
+      
+      echo "=== Recipe Validation Test ==="
+      
+      echo -n "Testing: amplifier tool invoke recipes operation=validate ... "
+      
+      # Try bundle path first, fall back to relative path for local testing
+      if output=$(amplifier tool invoke recipes operation=validate recipe_path=@smoke-test:recipes/smoke-test.yaml 2>&1); then
+        echo "OK"
+        echo "  Validation output: $(echo "$output" | head -3)"
+        echo "recipe-validation: PASS"
+      elif output=$(amplifier tool invoke recipes operation=validate recipe_path=./recipes/smoke-test.yaml 2>&1); then
+        echo "OK (via relative path)"
+        echo "  Validation output: $(echo "$output" | head -3)"
+        echo "recipe-validation: PASS"
+      else
+        echo "FAILED"
+        echo "  Error: $output"
+        exit 1
+      fi
+    output: "recipe_validation_result"
+    timeout: 30
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 5: Multi-Provider Testing (tests all available providers)
+  # ============================================================================
+  - id: "multi-provider"
+    type: "bash"
+    command: |
+      if [ "{{skip_llm}}" = "true" ]; then
+        echo "SKIPPED: LLM tests disabled (skip_llm=true)"
+        echo "multi-provider: SKIPPED"
+        exit 0
+      fi
+      
+      echo "=== Multi-Provider Testing ==="
+      
+      # Track results
+      tested=0
+      passed=0
+      skipped=0
+      failed_providers=""
+      
+      # Check each provider
+      for provider in openai anthropic azure-openai ollama; do
+        echo ""
+        echo "--- Testing provider: $provider ---"
+        
+        # Check if provider is available
+        case "$provider" in
+          openai)
+            if [ -z "${OPENAI_API_KEY:-}" ]; then
+              echo "  SKIPPED: OPENAI_API_KEY not set"
+              skipped=$((skipped + 1))
+              continue
+            fi
+            ;;
+          anthropic)
+            if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+              echo "  SKIPPED: ANTHROPIC_API_KEY not set"
+              skipped=$((skipped + 1))
+              continue
+            fi
+            ;;
+          azure-openai)
+            if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] && [ -z "${AZURE_OPENAI_BASE_URL:-}" ]; then
+              echo "  SKIPPED: AZURE_OPENAI_ENDPOINT not set"
+              skipped=$((skipped + 1))
+              continue
+            fi
+            if [ -z "${AZURE_OPENAI_API_KEY:-}" ] && [ -z "${AZURE_USE_DEFAULT_CREDENTIAL:-}" ]; then
+              echo "  SKIPPED: No Azure credentials available"
+              skipped=$((skipped + 1))
+              continue
+            fi
+            ;;
+          ollama)
+            if ! curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
+              echo "  SKIPPED: Ollama not running"
+              skipped=$((skipped + 1))
+              continue
+            fi
+            ;;
+        esac
+        
+        tested=$((tested + 1))
+        token="PROVIDER_${provider^^}_OK"
+        token=$(echo "$token" | tr '-' '_')
+        
+        echo "  Running test with token: $token"
+        
+        # Test the specific provider using --provider flag
+        response=$(amplifier run --provider "$provider" --mode single "Reply with exactly: $token" 2>&1 || true)
+        
+        if echo "$response" | grep -q "$token"; then
+          echo "  PASSED"
+          passed=$((passed + 1))
+        else
+          echo "  FAILED - Expected $token in response"
+          echo "  Response (first 100 chars): ${response:0:100}"
+          failed_providers="${failed_providers}$provider "
+        fi
+      done
+      
+      echo ""
+      echo "--- Multi-Provider Summary ---"
+      echo "Tested: $tested, Passed: $passed, Skipped: $skipped"
+      
+      if [ -n "$failed_providers" ]; then
+        echo "Failed providers: $failed_providers"
+        echo "multi-provider: FAIL"
+        exit 1
+      elif [ $tested -eq 0 ]; then
+        echo "multi-provider: SKIPPED (no providers available)"
+      else
+        echo "multi-provider: PASS"
+      fi
+    output: "multi_provider_result"
+    timeout: 300
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 6: Session CRUD (create, list, show, resume, delete)
+  # ============================================================================
+  - id: "session-crud"
+    type: "bash"
+    command: |
+      if [ "{{skip_llm}}" = "true" ]; then
+        echo "SKIPPED: LLM tests disabled (skip_llm=true)"
+        echo "session-crud: SKIPPED"
+        exit 0
+      fi
+      
+      set -euo pipefail
+      
+      echo "=== Session CRUD Tests ==="
+      errors=""
+      
+      # Test 1: Create session (capture session ID from output)
+      echo ""
+      echo -n "Testing: Create session ... "
+      response=$(amplifier run --mode single --output-format json "Reply with exactly: SESSION_CREATE_OK" 2>&1) || true
+      
+      # Extract session ID from JSON output
+      SESSION_ID=$(echo "$response" | grep -o '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || echo "")
+      
+      if [ -z "$SESSION_ID" ]; then
+        echo "FAILED (could not extract session ID)"
+        errors="${errors}create session failed; "
+      elif echo "$response" | grep -q "SESSION_CREATE_OK"; then
+        echo "OK (session: $SESSION_ID)"
+      else
+        echo "FAILED (unexpected response)"
+        errors="${errors}create session failed; "
+      fi
+      
+      # Test 2: List sessions (should include our session)
+      # Note: session list shows truncated IDs, so match first 8 chars
+      echo -n "Testing: List sessions ... "
+      SESSION_PREFIX="${SESSION_ID:0:8}"
+      if [ -n "$SESSION_ID" ] && amplifier session list 2>&1 | grep -q "$SESSION_PREFIX"; then
+        echo "OK (found $SESSION_PREFIX...)"
+      else
+        echo "FAILED (session not found in list)"
+        errors="${errors}session list failed; "
+      fi
+      
+      # Test 3: Show session details
+      echo -n "Testing: Show session ... "
+      if [ -n "$SESSION_ID" ] && amplifier session show "$SESSION_ID" >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}session show failed; "
+      fi
+      
+      # Test 4: Resume session
+      echo -n "Testing: Resume session ... "
+      if [ -n "$SESSION_ID" ]; then
+        resume_response=$(amplifier run --mode single --resume "$SESSION_ID" "Reply with exactly: SESSION_RESUME_OK" 2>&1) || true
+        if echo "$resume_response" | grep -q "SESSION_RESUME_OK"; then
+          echo "OK"
+        else
+          echo "FAILED (unexpected response)"
+          errors="${errors}resume session failed; "
+        fi
+      else
+        echo "SKIPPED (no session to resume)"
+        errors="${errors}resume session skipped; "
+      fi
+      
+      # Test 5: Delete session (cleanup)
+      echo -n "Testing: Delete session ... "
+      if [ -n "$SESSION_ID" ] && amplifier session delete "$SESSION_ID" --force >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}delete session failed; "
+      fi
+      
+      # Test 6: Verify deletion
+      echo -n "Testing: Verify session deleted ... "
+      if [ -z "$SESSION_ID" ] || ! amplifier session list 2>&1 | grep -q "$SESSION_PREFIX"; then
+        echo "OK"
+      else
+        echo "FAILED (session still exists)"
+        errors="${errors}session not deleted; "
+      fi
+      
+      # Report results
+      if [ -n "$errors" ]; then
+        echo ""
+        echo "ERRORS: $errors"
+        echo "session-crud: FAIL"
+        exit 1
+      fi
+      echo ""
+      echo "session-crud: PASS"
+    output: "session_crud_result"
+    timeout: 180
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 7: Source Override Workflow (add, verify, remove)
+  # ============================================================================
+  - id: "source-override"
+    type: "bash"
+    command: |
+      set -euo pipefail
+      
+      echo "=== Source Override Tests ==="
+      
+      # We'll test the source commands without actually modifying anything
+      # This tests the CLI interface works, not the full workflow (which would require a local module)
+      
+      errors=""
+      
+      # Test 1: source list works
+      echo -n "Testing: amplifier source list ... "
+      if amplifier source list >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}source list failed; "
+      fi
+      
+      # Test 2: source add help
+      echo -n "Testing: amplifier source add --help ... "
+      if amplifier source add --help >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}source add --help failed; "
+      fi
+      
+      # Test 3: source remove help
+      echo -n "Testing: amplifier source remove --help ... "
+      if amplifier source remove --help >/dev/null 2>&1; then
+        echo "OK"
+      else
+        echo "FAILED"
+        errors="${errors}source remove --help failed; "
+      fi
+      
+      # Note: We don't actually add/remove sources in smoke test
+      # as that would modify user configuration
+      # Full source override workflow is tested in integration tests
+      
+      # Report results
+      if [ -n "$errors" ]; then
+        echo "ERRORS: $errors"
+        echo "source-override: FAIL"
+        exit 1
+      fi
+      echo "source-override: PASS"
+    output: "source_override_result"
+    timeout: 30
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 8: @Mention Validation (read files via @mention)
+  # ============================================================================
+  - id: "mention-validation"
+    type: "bash"
+    command: |
+      if [ "{{skip_llm}}" = "true" ]; then
+        echo "SKIPPED: LLM tests disabled (skip_llm=true)"
+        echo "mention-validation: SKIPPED"
+        exit 0
+      fi
+      
+      echo "=== @Mention Validation Tests ==="
+      
+      # Create temp fixtures with known content
+      TMPDIR=$(mktemp -d)
+      trap "rm -rf $TMPDIR" EXIT
+      
+      cat > "$TMPDIR/doc1.md" << 'EOF'
+      # Test Document 1
+      This document contains the phrase: SMOKE_PHRASE_ALPHA
+      EOF
+      
+      cat > "$TMPDIR/doc2.md" << 'EOF'
+      # Test Document 2
+      This document contains the phrase: SMOKE_PHRASE_BETA
+      EOF
+      
+      echo "Created temp fixtures in: $TMPDIR"
+      
+      # Test: Read two files via @mention and extract phrases
+      echo "Testing: @mention with two documents"
+      
+      PROMPT="Read @$TMPDIR/doc1.md and @$TMPDIR/doc2.md. Find the unique SMOKE_PHRASE in each. Reply with exactly both phrases you found."
+      
+      response=$(amplifier run "$PROMPT" --mode single 2>&1 || true)
+      
+      echo "Response received:"
+      echo "$response" | head -20
+      
+      # Check for both phrases
+      found_alpha=false
+      found_beta=false
+      
+      if echo "$response" | grep -q "SMOKE_PHRASE_ALPHA"; then
+        found_alpha=true
+        echo "Found: SMOKE_PHRASE_ALPHA"
+      fi
+      
+      if echo "$response" | grep -q "SMOKE_PHRASE_BETA"; then
+        found_beta=true
+        echo "Found: SMOKE_PHRASE_BETA"
+      fi
+      
+      if $found_alpha && $found_beta; then
+        echo ""
+        echo "mention-validation: PASS"
+      else
+        echo ""
+        echo "mention-validation: FAIL - Expected both SMOKE_PHRASE_ALPHA and SMOKE_PHRASE_BETA"
+        exit 1
+      fi
+    output: "mention_validation_result"
+    timeout: 120
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 9: LLM Test - Provider Responds
+  # ============================================================================
+  - id: "provider-responds"
+    type: "bash"
+    command: |
+      if [ "{{skip_llm}}" = "true" ]; then
+        echo "SKIPPED: LLM tests disabled (skip_llm=true)"
+        echo "provider-responds: SKIPPED"
+        exit 0
+      fi
+      
+      echo "=== Provider Response Test ==="
+      echo "Testing: Provider responds to simple prompt"
+      
+      output=$(amplifier run 'Reply with exactly: SMOKE_TEST_OK' --mode single 2>&1)
+      echo "Response received:"
+      echo "$output" | head -20
+      
+      if echo "$output" | grep -q "SMOKE_TEST_OK"; then
+        echo ""
+        echo "provider-responds: PASS"
+      else
+        echo ""
+        echo "provider-responds: FAIL - Expected SMOKE_TEST_OK in response"
+        exit 1
+      fi
+    output: "provider_result"
+    timeout: 120
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 10: LLM Test - Tool Execution
+  # ============================================================================
+  - id: "tool-execution"
+    type: "bash"
+    command: |
+      if [ "{{skip_llm}}" = "true" ]; then
+        echo "SKIPPED: LLM tests disabled (skip_llm=true)"
+        echo "tool-execution: SKIPPED"
+        exit 0
+      fi
+      
+      echo "=== Tool Execution Test ==="
+      echo "Testing: LLM can use bash tool"
+      
+      output=$(amplifier run 'Use the bash tool to run: echo TOOL_OK. Reply with what the command printed.' --mode single 2>&1)
+      echo "Response received:"
+      echo "$output" | head -20
+      
+      if echo "$output" | grep -q "TOOL_OK"; then
+        echo ""
+        echo "tool-execution: PASS"
+      else
+        echo ""
+        echo "tool-execution: FAIL - Expected TOOL_OK in response"
+        exit 1
+      fi
+    output: "tool_result"
+    timeout: 120
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 11: LLM Test - Agent Delegation
+  # ============================================================================
+  - id: "agent-delegation"
+    type: "bash"
+    command: |
+      if [ "{{skip_llm}}" = "true" ]; then
+        echo "SKIPPED: LLM tests disabled (skip_llm=true)"
+        echo "agent-delegation: SKIPPED"
+        exit 0
+      fi
+      
+      echo "=== Agent Delegation Test ==="
+      echo "Testing: Task tool can delegate to another agent"
+      
+      output=$(amplifier run 'Use the task tool to delegate to foundation:explorer with instruction: Reply exactly with AGENT_OK. Return only what the agent said.' --mode single 2>&1)
+      echo "Response received:"
+      echo "$output" | head -30
+      
+      if echo "$output" | grep -q "AGENT_OK"; then
+        echo ""
+        echo "agent-delegation: PASS"
+      else
+        echo ""
+        echo "agent-delegation: FAIL - Expected AGENT_OK in response"
+        exit 1
+      fi
+    output: "agent_result"
+    timeout: 180
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 12: Summary (output raw results for agent to evaluate)
+  # ============================================================================
+  - id: "summary"
+    type: "bash"
+    command: |
+      cat << 'EOF'
+      ============================================================
+      RAW TEST RESULTS (for agent evaluation)
+      ============================================================
+      
+      CLI Core:
+      {{cli_core_result}}
+      
+      ---
+      CLI Config:
+      {{cli_config_result}}
+      
+      ---
+      CLI Resources:
+      {{cli_resources_result}}
+      
+      ---
+      Recipe Validation:
+      {{recipe_validation_result}}
+      
+      ---
+      Source Override:
+      {{source_override_result}}
+      
+      ---
+      Multi-Provider:
+      {{multi_provider_result}}
+      
+      ---
+      Session CRUD:
+      {{session_crud_result}}
+      
+      ---
+      Mention Validation:
+      {{mention_validation_result}}
+      
+      ---
+      Provider Responds:
+      {{provider_result}}
+      
+      ---
+      Tool Execution:
+      {{tool_result}}
+      
+      ---
+      Agent Delegation:
+      {{agent_result}}
+      
+      ============================================================
+      END RAW RESULTS
+      ============================================================
+      EOF
+    output: "raw_results"
+    timeout: 30
