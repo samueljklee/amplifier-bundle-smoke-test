@@ -1,0 +1,436 @@
+# Bundle Composition Validation Recipe
+#
+# Validates core bundle composition mechanisms using a self-contained test bundle.
+# No external dependencies (does not require foundation bundle).
+#
+# What this recipe validates:
+# 1. Direct agent registration (agents.include in bundle.md)
+# 2. Transitive agent registration (agents from included behaviors)
+# 3. Tool selection (only declared tools appear in bundle config)
+# 4. Context resolution (direct @mention and transitive via behavior) - LLM-based
+#
+# Usage:
+#   amplifier tool invoke recipes operation=execute recipe_path=@smoke-test:recipes/bundle-composition.yaml
+#
+# For context resolution tests (requires LLM):
+#   amplifier tool invoke recipes operation=execute recipe_path=@smoke-test:recipes/bundle-composition.yaml context='{"skip_context_tests": false}'
+
+name: "bundle-composition-validation"
+description: "Validates bundle composition mechanisms using a self-contained test bundle"
+version: "1.0.0"
+author: "Amplifier Smoke Test"
+tags: ["smoke-test", "bundle", "composition", "validation"]
+
+context:
+  # Skip LLM-dependent context resolution tests by default
+  skip_context_tests: true
+  # Expected values for validation
+  expected_direct_agent: "smoke-test-bundle:direct-agent"
+  expected_behavior_agent: "smoke-test-bundle:behavior-agent"
+  expected_tools: "tool-filesystem,tool-bash"
+  # Tokens for context resolution tests
+  direct_context_token: "BUNDLE_DIRECT_CONTEXT_ALPHA"
+  transitive_context_token: "BEHAVIOR_TRANSITIVE_CONTEXT_BETA"
+
+steps:
+  # ============================================================
+  # Phase 1: Setup - Register test bundle
+  # ============================================================
+  # Path Resolution:
+  # When executed via @smoke-test:recipes/bundle-composition.yaml,
+  # the recipe tool resolves @smoke-test to the bundle's filesystem location.
+  # We use `amplifier bundle show` to find the bundle root reliably.
+  - id: "setup-register-bundle"
+    type: "bash"
+    command: |
+      echo "=== Phase 1: Setup ==="
+      echo "Registering test bundle..."
+      
+      TEST_BUNDLE_PATH=""
+      
+      # Method 1: Use bundle CLI to find smoke-test bundle location (most reliable)
+      # Works for installed bundles from any directory
+      BUNDLE_ROOT=$(amplifier bundle show smoke-test --format json 2>/dev/null | grep -o '"location"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"location"[[:space:]]*:[[:space:]]*"//' | sed 's/"$//' || echo "")
+      
+      if [ -n "$BUNDLE_ROOT" ] && [ -f "$BUNDLE_ROOT/test-bundle/bundle.md" ]; then
+        TEST_BUNDLE_PATH="$BUNDLE_ROOT/test-bundle/bundle.md"
+        echo "Found test bundle via bundle show: $TEST_BUNDLE_PATH"
+      fi
+      
+      # Method 2: Development mode - running from bundle source directory
+      if [ -z "$TEST_BUNDLE_PATH" ] && [ -f "./test-bundle/bundle.md" ]; then
+        TEST_BUNDLE_PATH="./test-bundle/bundle.md"
+        echo "Found test bundle in current directory (development mode)"
+      fi
+      
+      # Method 3: Relative to recipes directory
+      if [ -z "$TEST_BUNDLE_PATH" ] && [ -f "../test-bundle/bundle.md" ]; then
+        TEST_BUNDLE_PATH="../test-bundle/bundle.md"
+        echo "Found test bundle via relative path"
+      fi
+      
+      if [ -z "$TEST_BUNDLE_PATH" ]; then
+        echo "ERROR: Could not find test-bundle/bundle.md"
+        echo ""
+        echo "To debug:"
+        echo "  amplifier bundle show smoke-test"
+        echo ""
+        echo "Expected locations:"
+        echo "  - <bundle_location>/test-bundle/bundle.md"
+        echo "  - ./test-bundle/bundle.md (development mode)"
+        echo "SETUP_FAIL"
+        exit 1
+      fi
+      
+      # Remove existing registration if present
+      if amplifier bundle show smoke-test-bundle >/dev/null 2>&1; then
+        echo "Test bundle already registered, removing first..."
+        amplifier bundle remove smoke-test-bundle 2>/dev/null || true
+      fi
+      
+      echo "Registering test bundle from: $TEST_BUNDLE_PATH"
+      amplifier bundle add "file://$TEST_BUNDLE_PATH" --name smoke-test-bundle
+      
+      if [ $? -eq 0 ]; then
+        echo "SETUP_OK"
+      else
+        echo "SETUP_FAIL"
+        exit 1
+      fi
+    output: "setup_result"
+    timeout: 60
+
+  # ============================================================
+  # Phase 2: Agent Accessibility Tests
+  # ============================================================
+  - id: "test-agent-accessibility"
+    type: "bash"
+    command: |
+      echo "=== Phase 2: Agent Accessibility ==="
+      
+      # Get bundle info
+      bundle_info=$(amplifier bundle show smoke-test-bundle 2>&1)
+      
+      if [ $? -ne 0 ]; then
+        echo "ERROR: Failed to get bundle info"
+        echo "$bundle_info"
+        exit 1
+      fi
+      
+      echo "Bundle info:"
+      echo "$bundle_info"
+      echo ""
+      
+      # Test 2.1: Direct agent accessibility
+      echo "--- Test 2.1: Direct Agent ---"
+      if echo "$bundle_info" | grep -q "{{expected_direct_agent}}"; then
+        echo "PASS: Direct agent '{{expected_direct_agent}}' found"
+        direct_agent_pass="true"
+      else
+        echo "FAIL: Direct agent '{{expected_direct_agent}}' NOT found"
+        direct_agent_pass="false"
+      fi
+      
+      # Test 2.2: Transitive agent accessibility (from behavior)
+      echo "--- Test 2.2: Transitive Agent (from behavior) ---"
+      if echo "$bundle_info" | grep -q "{{expected_behavior_agent}}"; then
+        echo "PASS: Behavior agent '{{expected_behavior_agent}}' found"
+        behavior_agent_pass="true"
+      else
+        echo "FAIL: Behavior agent '{{expected_behavior_agent}}' NOT found"
+        behavior_agent_pass="false"
+      fi
+      
+      # Summary
+      echo ""
+      echo "--- Agent Accessibility Summary ---"
+      if [ "$direct_agent_pass" = "true" ] && [ "$behavior_agent_pass" = "true" ]; then
+        echo "AGENT_TESTS_PASS"
+      else
+        echo "AGENT_TESTS_FAIL"
+        exit 1
+      fi
+    output: "agent_test_result"
+    timeout: 30
+
+  # ============================================================
+  # Phase 3: Tool Selection Tests
+  # ============================================================
+  - id: "test-tool-selection"
+    type: "bash"
+    command: |
+      echo "=== Phase 3: Tool Selection ==="
+      
+      # Get bundle info
+      bundle_info=$(amplifier bundle show smoke-test-bundle 2>&1)
+      
+      # Test 3.1: Expected tools are declared
+      echo "--- Test 3.1: Expected Tools Declared ---"
+      
+      expected_tools="{{expected_tools}}"
+      IFS=',' read -ra TOOLS <<< "$expected_tools"
+      
+      tools_pass="true"
+      for tool in "${TOOLS[@]}"; do
+        if echo "$bundle_info" | grep -q "$tool"; then
+          echo "PASS: Tool '$tool' declared in bundle"
+        else
+          echo "FAIL: Tool '$tool' NOT declared in bundle"
+          tools_pass="false"
+        fi
+      done
+      
+      # Test 3.2: Unexpected tools are NOT declared (negative test)
+      echo "--- Test 3.2: Unexpected Tools NOT Declared ---"
+      
+      # These tools should NOT be in the test bundle's declared tools
+      unexpected_tools="tool-web tool-task tool-search"
+      
+      negative_pass="true"
+      for tool in $unexpected_tools; do
+        # Check the Tools section specifically (not the entire output)
+        tools_section=$(echo "$bundle_info" | sed -n '/^Tools:/,/^[A-Z]/p' | head -n -1)
+        if echo "$tools_section" | grep -q "$tool"; then
+          echo "FAIL: Unexpected tool '$tool' found in bundle declaration"
+          negative_pass="false"
+        else
+          echo "PASS: Tool '$tool' correctly NOT declared"
+        fi
+      done
+      
+      # Summary
+      echo ""
+      echo "--- Tool Selection Summary ---"
+      if [ "$tools_pass" = "true" ] && [ "$negative_pass" = "true" ]; then
+        echo "TOOL_TESTS_PASS"
+      else
+        echo "TOOL_TESTS_FAIL"
+        exit 1
+      fi
+    output: "tool_test_result"
+    timeout: 30
+
+  # ============================================================
+  # Phase 4: Directory Permission Commands
+  # ============================================================
+  - id: "test-directory-permissions"
+    type: "bash"
+    command: |
+      echo "=== Phase 4: Directory Permission Commands ==="
+      
+      # Test 4.1: allowed-dirs list
+      echo "--- Test 4.1: allowed-dirs list ---"
+      allowed_output=$(amplifier allowed-dirs list 2>&1)
+      allowed_exit=$?
+      
+      if [ $allowed_exit -eq 0 ]; then
+        echo "PASS: 'amplifier allowed-dirs list' executed successfully"
+        echo "Output: $allowed_output"
+        allowed_pass="true"
+      else
+        echo "FAIL: 'amplifier allowed-dirs list' failed with exit code $allowed_exit"
+        echo "Output: $allowed_output"
+        allowed_pass="false"
+      fi
+      
+      # Test 4.2: denied-dirs list
+      echo "--- Test 4.2: denied-dirs list ---"
+      denied_output=$(amplifier denied-dirs list 2>&1)
+      denied_exit=$?
+      
+      if [ $denied_exit -eq 0 ]; then
+        echo "PASS: 'amplifier denied-dirs list' executed successfully"
+        echo "Output: $denied_output"
+        denied_pass="true"
+      else
+        echo "FAIL: 'amplifier denied-dirs list' failed with exit code $denied_exit"
+        echo "Output: $denied_output"
+        denied_pass="false"
+      fi
+      
+      # Summary
+      echo ""
+      echo "--- Directory Permission Summary ---"
+      if [ "$allowed_pass" = "true" ] && [ "$denied_pass" = "true" ]; then
+        echo "DIRECTORY_TESTS_PASS"
+      else
+        echo "DIRECTORY_TESTS_FAIL"
+        exit 1
+      fi
+    output: "directory_test_result"
+    timeout: 30
+
+  # ============================================================
+  # Phase 5: Context Resolution - Direct context.include (LLM-based)
+  # ============================================================
+  - id: "test-context-direct"
+    type: "bash"
+    command: |
+      if [ "{{skip_context_tests}}" = "true" ]; then
+        echo "SKIPPED: Context tests disabled (skip_context_tests=true)"
+        echo "CONTEXT_DIRECT_SKIPPED"
+        exit 0
+      fi
+      
+      echo "=== Phase 5: Direct Context Resolution (LLM) ==="
+      echo "Testing: LLM can see content from bundle's context.include in frontmatter"
+      echo ""
+      echo "Expected token: {{direct_context_token}}"
+      echo ""
+      
+      # Run a session with the test bundle and ask for the token
+      response=$(amplifier run --bundle smoke-test-bundle --mode single \
+        "Look in your system context for a verification token that starts with 'BUNDLE_'. This token proves direct context.include resolution works. Reply with ONLY the exact token you found, nothing else." 2>&1) || true
+      
+      echo "Response received:"
+      echo "$response"
+      echo ""
+      
+      # Check if the expected token is in the response
+      if echo "$response" | grep -q "{{direct_context_token}}"; then
+        echo ""
+        echo "PASS: Direct context token found in LLM response"
+        echo "CONTEXT_DIRECT_PASS"
+      else
+        echo ""
+        echo "FAIL: Direct context token NOT found in LLM response"
+        echo "This means the context.include in bundle frontmatter did not resolve correctly"
+        echo "CONTEXT_DIRECT_FAIL"
+        exit 1
+      fi
+    output: "context_direct_result"
+    timeout: 120
+    on_error: "continue"
+
+  # ============================================================
+  # Phase 6: Context Resolution - Transitive via Behavior (LLM-based)
+  # ============================================================
+  - id: "test-context-transitive"
+    type: "bash"
+    command: |
+      if [ "{{skip_context_tests}}" = "true" ]; then
+        echo "SKIPPED: Context tests disabled (skip_context_tests=true)"
+        echo "CONTEXT_TRANSITIVE_SKIPPED"
+        exit 0
+      fi
+      
+      echo "=== Phase 6: Transitive Context Resolution (LLM) ==="
+      echo "Testing: LLM can see content from behavior context.include"
+      echo ""
+      echo "Expected token: {{transitive_context_token}}"
+      echo ""
+      
+      # Run a session with the test bundle and ask for the token
+      response=$(amplifier run --bundle smoke-test-bundle --mode single \
+        "Look in your system context for a verification token that starts with 'BEHAVIOR_'. This token proves transitive context resolution from included behaviors works. Reply with ONLY the exact token you found, nothing else." 2>&1) || true
+      
+      echo "Response received:"
+      echo "$response"
+      echo ""
+      
+      # Check if the expected token is in the response
+      if echo "$response" | grep -q "{{transitive_context_token}}"; then
+        echo ""
+        echo "PASS: Transitive context token found in LLM response"
+        echo "CONTEXT_TRANSITIVE_PASS"
+      else
+        echo ""
+        echo "FAIL: Transitive context token NOT found in LLM response"
+        echo "This means the behavior context.include did not resolve correctly"
+        echo "CONTEXT_TRANSITIVE_FAIL"
+        exit 1
+      fi
+    output: "context_transitive_result"
+    timeout: 120
+    on_error: "continue"
+
+  # ============================================================
+  # Phase 7: Cleanup
+  # ============================================================
+  - id: "cleanup"
+    type: "bash"
+    command: |
+      echo "=== Phase 7: Cleanup ==="
+      
+      # Remove the test bundle registration
+      amplifier bundle remove smoke-test-bundle 2>/dev/null || true
+      
+      echo "CLEANUP_OK"
+    output: "cleanup_result"
+    timeout: 30
+    on_error: "continue"
+
+  # ============================================================
+  # Phase 8: Summary (output raw results for evaluation)
+  # ============================================================
+  - id: "summary"
+    type: "bash"
+    command: |
+      cat << 'SUMMARY_EOF'
+      ============================================================
+      BUNDLE COMPOSITION RAW TEST RESULTS
+      ============================================================
+      
+      Setup:
+      {{setup_result}}
+      
+      ---
+      Agent Accessibility:
+      {{agent_test_result}}
+      
+      ---
+      Tool Selection:
+      {{tool_test_result}}
+      
+      ---
+      Directory Permissions:
+      {{directory_test_result}}
+      
+      ---
+      Context (Direct):
+      {{context_direct_result}}
+      
+      ---
+      Context (Transitive):
+      {{context_transitive_result}}
+      
+      ============================================================
+      RESULT TOKENS TO CHECK:
+      - SETUP_OK = Setup passed
+      - AGENT_TESTS_PASS = Agent accessibility passed
+      - TOOL_TESTS_PASS = Tool selection passed  
+      - DIRECTORY_TESTS_PASS = Directory permissions passed
+      - CONTEXT_DIRECT_PASS/SKIPPED = Direct context resolution
+      - CONTEXT_TRANSITIVE_PASS/SKIPPED = Transitive context resolution
+      ============================================================
+      SUMMARY_EOF
+    output: "final_summary"
+    timeout: 30
+
+  # ============================================================
+  # Future Enhancement: Session Analysis for Objective Verification
+  # ============================================================
+  # 
+  # The LLM-based context tests above rely on the LLM self-reporting
+  # what it can see. For deeper, objective verification, use the
+  # foundation:session-analyst agent to examine actual session data.
+  #
+  # Session-analyst can:
+  # - Examine events.jsonl to see the actual system prompt sent
+  # - Verify which context files were resolved and included
+  # - Provide objective evidence (not LLM self-reporting)
+  #
+  # Investigation Pattern:
+  # 1. The context tests above capture session IDs in their output
+  # 2. Delegate to foundation:session-analyst with:
+  #    "Analyze session <session_id> and verify these context files
+  #     were included in the system prompt:
+  #     - smoke-test-bundle:context/direct-context.md (should contain BUNDLE_DIRECT_CONTEXT_ALPHA)
+  #     - smoke-test-bundle:context/behavior-context.md (should contain BEHAVIOR_TRANSITIVE_CONTEXT_BETA)"
+  #
+  # If direct context test fails:
+  # - Session-analyst can confirm whether the @mention was resolved
+  # - This helps distinguish between "context not loaded" vs "LLM missed it"
+  #
+  # This investigation is left for future agents to pursue when
+  # context resolution issues need debugging.

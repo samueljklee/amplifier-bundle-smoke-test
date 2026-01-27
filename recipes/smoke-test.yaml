@@ -17,13 +17,14 @@
 #   - Session CRUD lifecycle
 #   - Source override workflow
 #   - @mention validation with fixtures
+#   - Bundle composition validation (agents, tools, context resolution)
 #   - LLM tests kept separate for debugging
 #   - Deterministic bash summary (no LLM overhead)
 #   - on_error: continue collects all failures
 
 name: "smoke-test"
 description: "Comprehensive sanity check - does the installed Amplifier CLI work?"
-version: "3.0.0"
+version: "4.0.0"
 tags: ["testing", "smoke-test", "cli", "verification"]
 
 context:
@@ -641,7 +642,21 @@ steps:
     on_error: "continue"
 
   # ============================================================================
-  # Phase 12: Summary (output raw results for agent to evaluate)
+  # Phase 12: Bundle Composition Tests
+  # ============================================================================
+  # Uses recipe composition - path resolved relative to this recipe's directory
+  # Works from any directory, by any user, via @mention paths
+  - id: "bundle-composition"
+    type: "recipe"
+    recipe: "bundle-composition.yaml"
+    context:
+      skip_context_tests: "{{skip_llm}}"
+    output: "bundle_composition_result"
+    timeout: 300
+    on_error: "continue"
+
+  # ============================================================================
+  # Phase 13: Summary (output raw results for agent to evaluate)
   # ============================================================================
   - id: "summary"
     type: "bash"
@@ -693,6 +708,10 @@ steps:
       ---
       Agent Delegation:
       {{agent_result}}
+      
+      ---
+      Bundle Composition:
+      {{bundle_composition_result}}
       
       ============================================================
       END RAW RESULTS
