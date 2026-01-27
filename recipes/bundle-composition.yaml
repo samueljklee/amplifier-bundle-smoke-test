@@ -50,7 +50,7 @@ steps:
       
       # Method 1: Use bundle CLI to find smoke-test bundle location (most reliable)
       # Works for installed bundles from any directory
-      BUNDLE_ROOT=$(amplifier bundle show smoke-test --format json 2>/dev/null | grep -o '"location"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"location"[[:space:]]*:[[:space:]]*"//' | sed 's/"$//' || echo "")
+      BUNDLE_ROOT=$(amplifier bundle show smoke-test 2>/dev/null | grep -i "^Location:" | sed 's/Location:[[:space:]]*//' || echo "")
       
       if [ -n "$BUNDLE_ROOT" ] && [ -f "$BUNDLE_ROOT/test-bundle/bundle.md" ]; then
         TEST_BUNDLE_PATH="$BUNDLE_ROOT/test-bundle/bundle.md"
